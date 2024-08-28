@@ -28,11 +28,13 @@ import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.index.reindex.UpdateByQueryRequest;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
-import org.elasticsearch.search.aggregations.Aggregation;
-import org.elasticsearch.search.aggregations.AggregationBuilders;
-import org.elasticsearch.search.aggregations.Aggregations;
+import org.elasticsearch.search.aggregations.*;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
+import org.elasticsearch.search.aggregations.metrics.Avg;
+import org.elasticsearch.search.aggregations.metrics.ParsedMin;
+import org.elasticsearch.search.aggregations.pipeline.MinBucketPipelineAggregationBuilder;
+import org.elasticsearch.search.aggregations.pipeline.ParsedBucketMetricValue;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 import org.elasticsearch.search.sort.SortOrder;
@@ -255,20 +257,33 @@ public class DemoController {
         SearchRequest searchRequest = new SearchRequest("product");
         SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder();
         searchSourceBuilder.size(0);
+        //term聚合
         TermsAggregationBuilder aggregationBuilder = AggregationBuilders.terms("type")
                 .field("type.keyword")
                         .subAggregation(AggregationBuilders.avg("price")
-                                .field("price"));
+                                .field("price")).order(BucketOrder.aggregation("price",false));
+        //pipline聚合
+        MinBucketPipelineAggregationBuilder minBucketBuilder = PipelineAggregatorBuilders.minBucket("minBucket", "type>price");
+        //设置聚合
         searchSourceBuilder.aggregation(aggregationBuilder);
+        searchSourceBuilder.aggregation(minBucketBuilder);
         searchRequest.source(searchSourceBuilder);
         SearchResponse searchResponse = esClient.search(searchRequest, RequestOptions.DEFAULT);
         Aggregations aggregations = searchResponse.getAggregations();
+        //获取pipline聚合结果
+        ParsedBucketMetricValue minBucket = aggregations.get("minBucket");
+        double value = minBucket.value();
+        String[] keys = minBucket.keys();
+        System.out.println("pipline聚合结果key:" + keys[0] + " value:" + value);
+        //获取桶聚合结果
         Terms lvBucket = aggregations.get("type");
         List<? extends Terms.Bucket> buckets = lvBucket.getBuckets();
         for (Terms.Bucket bucket : buckets) {
             String keyAsString = bucket.getKeyAsString();
             long docCount = bucket.getDocCount();
-            System.out.println("key：" + keyAsString + " count: " + docCount);
+            Avg price = bucket.getAggregations().get("price");
+            System.out.println("key：" + keyAsString + " count: " + docCount + " avg: " + price.getValue());
         }
+
     }
 }
