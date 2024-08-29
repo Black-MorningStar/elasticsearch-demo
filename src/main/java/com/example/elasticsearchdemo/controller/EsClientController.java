@@ -32,11 +32,10 @@ import org.elasticsearch.search.aggregations.*;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.Avg;
-import org.elasticsearch.search.aggregations.metrics.ParsedMin;
+import org.elasticsearch.search.aggregations.metrics.AvgAggregationBuilder;
 import org.elasticsearch.search.aggregations.pipeline.MinBucketPipelineAggregationBuilder;
 import org.elasticsearch.search.aggregations.pipeline.ParsedBucketMetricValue;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
-import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 import org.elasticsearch.search.sort.SortOrder;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -52,8 +51,8 @@ import java.util.Map;
  * @date 2024/8/28
  */
 @RestController
-@RequestMapping("/demo")
-public class DemoController {
+@RequestMapping("/esClient")
+public class EsClientController {
 
     @Autowired
     private RestHighLevelClient esClient;
@@ -284,6 +283,56 @@ public class DemoController {
             Avg price = bucket.getAggregations().get("price");
             System.out.println("key：" + keyAsString + " count: " + docCount + " avg: " + price.getValue());
         }
+    }
 
+    @PostMapping("/searchApi6")
+    public void searchApi6() throws IOException {
+        SearchRequest searchRequest = new SearchRequest("product");
+        SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder();
+        //构建match query
+        searchSourceBuilder.query(QueryBuilders.matchQuery("name","小米"));
+        //构建聚合
+        TermsAggregationBuilder typeAgg = AggregationBuilders.terms("type")
+                .field("type.keyword");
+        TermsAggregationBuilder lvAgg = AggregationBuilders.terms("lv")
+                .field("lv.keyword");
+        typeAgg.subAggregation(lvAgg);
+        AvgAggregationBuilder avgAgg = AggregationBuilders.avg("price").field("price");
+        lvAgg.subAggregation(avgAgg);
+        MinBucketPipelineAggregationBuilder minBucketAgg = PipelineAggregatorBuilders.minBucket("minBucket", "lv>price");
+        typeAgg.subAggregation(minBucketAgg);
+        searchSourceBuilder.aggregation(typeAgg);
+        //构建返回的source字段
+        searchSourceBuilder.fetchSource(new String[]{"name","price","lv","type"},null);
+        searchRequest.source(searchSourceBuilder);
+        SearchResponse searchResponse = esClient.search(searchRequest, RequestOptions.DEFAULT);
+        //返回结果
+        SearchHits hits = searchResponse.getHits();
+        SearchHit[] searchHits = hits.getHits();
+        for (SearchHit hit : searchHits) {
+            String sourceAsString = hit.getSourceAsString();
+            System.out.println("返回的数据结果为：" + sourceAsString);
+        }
+        //返回的聚合信息
+        Aggregations aggregations = searchResponse.getAggregations();
+        Terms typeBucket = aggregations.get("type");
+        List<? extends Terms.Bucket> typeBucketDetail = typeBucket.getBuckets();
+        for (Terms.Bucket type : typeBucketDetail) {
+            String keyAsString = type.getKeyAsString();
+            long docCount = type.getDocCount();
+            System.out.println("Type桶的Key: "+keyAsString + " count: " + docCount);
+            Terms lvBucket = type.getAggregations().get("lv");
+            List<? extends Terms.Bucket> lvBucketDetail = lvBucket.getBuckets();
+            for (Terms.Bucket lv : lvBucketDetail) {
+                System.out.println("lv桶的Key: "+lv.getKeyAsString() + " count: " + lv.getDocCount());
+                Avg priceBucket = lv.getAggregations().get("price");
+                double value = priceBucket.getValue();
+                System.out.println("price桶的价格: " + value);
+            }
+            ParsedBucketMetricValue minBucket = type.getAggregations().get("minBucket");
+            String key = minBucket.keys()[0];
+            double value = minBucket.value();
+            System.out.println("minBucket 桶的key: " + key + " value: " + value);
+        }
     }
 }
