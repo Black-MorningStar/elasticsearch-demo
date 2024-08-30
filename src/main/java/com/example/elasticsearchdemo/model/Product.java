@@ -39,7 +39,8 @@ public class Product {
     @Field(name = "type",type = FieldType.Text)
     private String type;
 
-    @Field(name = "createtime",type = FieldType.Date,format = DateFormat.basic_date_time_no_millis)
+    //format = DateFormat.basic_date_time_no_millis
+    @Field(name = "createtime",type = FieldType.Date, pattern = "uuuu-MM-dd HH:mm:ss")
     private String createtime;
 
     @Field(name = "tags",type = FieldType.Text)
