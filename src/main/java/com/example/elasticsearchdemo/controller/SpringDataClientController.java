@@ -5,6 +5,7 @@ import com.example.elasticsearchdemo.model.City;
 import com.example.elasticsearchdemo.model.Product;
 import com.example.elasticsearchdemo.model.ProductOne;
 import com.example.elasticsearchdemo.model.Province;
+import com.example.elasticsearchdemo.repositories.ProductRepository;
 import org.elasticsearch.search.aggregations.Aggregations;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -34,6 +35,8 @@ public class SpringDataClientController {
 
     @Autowired
     private ElasticsearchOperations elasticsearchOperations;
+    @Autowired
+    private ProductRepository productRepository;
 
     @PostMapping("/getDoc")
     public void getDoc() {
@@ -113,6 +116,14 @@ public class SpringDataClientController {
         for (Terms.Bucket bucket : buckets) {
             System.out.println("key: " + bucket.getKeyAsString() + " count: " + bucket.getDocCount());
         }
+    }
+
+    @PostMapping("/search6")
+    public void search6(String name, Double price) {
+        List<Product> list = productRepository.findByNameAndPrice(name, price);
+        list.forEach(it -> {
+            System.out.println("结果为: " + JSONObject.toJSONString(it));
+        });
     }
 
 

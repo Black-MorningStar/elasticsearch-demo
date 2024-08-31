@@ -5,6 +5,7 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.data.elasticsearch.client.ClientConfiguration;
 import org.springframework.data.elasticsearch.client.RestClients;
 import org.springframework.data.elasticsearch.config.AbstractElasticsearchConfiguration;
+import org.springframework.data.elasticsearch.repository.config.EnableElasticsearchRepositories;
 
 /**
  * 定义Spring的
@@ -13,6 +14,9 @@ import org.springframework.data.elasticsearch.config.AbstractElasticsearchConfig
  * @date 2024/8/29
  */
 @Configuration
+@EnableElasticsearchRepositories(
+        basePackages = "com.example.elasticsearchdemo.repositories"
+)
 public class SpringDataEsConfig extends AbstractElasticsearchConfiguration {
 
     @Override
