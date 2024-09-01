@@ -6,18 +6,24 @@ import com.example.elasticsearchdemo.model.Product;
 import com.example.elasticsearchdemo.model.ProductOne;
 import com.example.elasticsearchdemo.model.Province;
 import com.example.elasticsearchdemo.repositories.ProductRepository;
+import org.apache.commons.lang.StringUtils;
+import org.elasticsearch.action.search.SearchType;
+import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.aggregations.Aggregations;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
+import org.elasticsearch.search.fetch.subphase.highlight.HighlightBuilder;
+import org.elasticsearch.search.sort.FieldSortBuilder;
+import org.elasticsearch.search.sort.SortBuilder;
+import org.elasticsearch.search.sort.SortOrder;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
+import org.springframework.data.elasticsearch.core.AggregationsContainer;
 import org.springframework.data.elasticsearch.core.ElasticsearchOperations;
 import org.springframework.data.elasticsearch.core.SearchHits;
-import org.springframework.data.elasticsearch.core.query.Criteria;
-import org.springframework.data.elasticsearch.core.query.CriteriaQuery;
-import org.springframework.data.elasticsearch.core.query.Query;
-import org.springframework.data.elasticsearch.core.query.StringQuery;
+import org.springframework.data.elasticsearch.core.SearchPage;
+import org.springframework.data.elasticsearch.core.query.*;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
@@ -69,6 +75,7 @@ public class SpringDataClientController {
                 new CriteriaQuery(new Criteria("name").is("小米")
                         .and(new Criteria("price").between(10, 3000)))
                         .addSort(Sort.by(Sort.Order.desc("price")));
+
         SearchHits<Product> search = elasticsearchOperations.search(criteriaQuery, Product.class);
         search.get().forEach(it -> {
             Product content = it.getContent();
@@ -110,7 +117,7 @@ public class SpringDataClientController {
                 "  }");
 
         SearchHits<ProductOne> search = elasticsearchOperations.search(stringQuery, ProductOne.class);
-        Aggregations aggregations = search.getAggregations();
+        Aggregations aggregations = (Aggregations) search.getAggregations().aggregations();
         Terms type = aggregations.get("type");
         List<? extends Terms.Bucket> buckets = type.getBuckets();
         for (Terms.Bucket bucket : buckets) {
@@ -126,7 +133,50 @@ public class SpringDataClientController {
         });
     }
 
+    @PostMapping("/search7")
+    public void search7(String order1, String order2) {
+        NativeSearchQueryBuilder builder = new NativeSearchQueryBuilder()
+                .withQuery(QueryBuilders.matchQuery("name", "小米"))
+                .withSorts(new FieldSortBuilder("price").order(SortOrder.DESC), new FieldSortBuilder("createtime").order(SortOrder.DESC))
+                .withPageable(PageRequest.ofSize(2));
+        if (StringUtils.isNotBlank(order1) && StringUtils.isNotBlank(order2)) {
+            List<Object> list = new ArrayList<>();
+            list.add(order1);
+            list.add(order2);
+            builder.withSearchAfter(list);
+        }
 
+        SearchHits<Product> search = elasticsearchOperations.search(builder.build(), Product.class);
+        search.forEach(it -> {
+            Product content = it.getContent();
+            List<Object> sortValues = it.getSortValues();
+            System.out.println("结果为: " + JSONObject.toJSONString(content));
+            System.out.println("排序为: " + sortValues.get(0) + "-" + sortValues.get(1));
+        });
+    }
+
+    @PostMapping("/search8")
+    public void search9() {
+        SearchPage<Product> page = productRepository.findByNameOrderByPriceDescCreatetimeDesc("小米", PageRequest.of(0, 2));
+        page.getSearchHits().forEach(it -> {
+            Product content = it.getContent();
+            List<Object> sortValues = it.getSortValues();
+            System.out.println("结果为: " + JSONObject.toJSONString(content));
+            System.out.println("排序为: " + sortValues.get(0) + "-" + sortValues.get(1));
+        });
+    }
+
+    @PostMapping("/search10")
+    public void search10() {
+        NativeSearchQuery query = new NativeSearchQueryBuilder()
+                .withQuery(QueryBuilders.matchQuery("name", "小米"))
+                .withHighlightFields(new HighlightBuilder.Field("name")).build();
+        SearchHits<Product> search = elasticsearchOperations.search(query, Product.class);
+        search.getSearchHits().forEach(it -> {
+            List<String> field = it.getHighlightField("name");
+            System.out.println("高亮为: "+JSONObject.toJSONString(field));
+        });
+    }
 
     private ProductOne bulid(String id, String name,
                              String pName, String pCode,

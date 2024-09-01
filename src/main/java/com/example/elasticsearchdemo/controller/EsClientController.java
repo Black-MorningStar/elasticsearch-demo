@@ -1,6 +1,7 @@
 package com.example.elasticsearchdemo.controller;
 
 import com.alibaba.fastjson.JSONObject;
+import org.apache.commons.lang.StringUtils;
 import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkRequest;
@@ -21,7 +22,6 @@ import org.elasticsearch.client.core.GetSourceResponse;
 import org.elasticsearch.client.indices.CreateIndexRequest;
 import org.elasticsearch.client.indices.CreateIndexResponse;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.TermQueryBuilder;
@@ -37,6 +37,7 @@ import org.elasticsearch.search.aggregations.pipeline.MinBucketPipelineAggregati
 import org.elasticsearch.search.aggregations.pipeline.ParsedBucketMetricValue;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.sort.SortOrder;
+import org.elasticsearch.xcontent.XContentType;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -333,6 +334,28 @@ public class EsClientController {
             String key = minBucket.keys()[0];
             double value = minBucket.value();
             System.out.println("minBucket 桶的key: " + key + " value: " + value);
+        }
+    }
+
+    @PostMapping("/searchApi7")
+    public void searchApi7(String order1, String order2) throws IOException {
+        SearchRequest searchRequest = new SearchRequest("product");
+        SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder();
+        searchSourceBuilder.query(QueryBuilders.matchQuery("name","小米"))
+                .sort("price",SortOrder.DESC).sort("createtime",SortOrder.DESC);
+        searchSourceBuilder.size(2);
+        if (StringUtils.isNotBlank(order1) && StringUtils.isNotBlank(order2)) {
+            searchSourceBuilder.searchAfter(new String[]{order1,order2});
+        }
+        searchRequest.source(searchSourceBuilder);
+        SearchResponse searchResponse = esClient.search(searchRequest, RequestOptions.DEFAULT);
+        SearchHits hits = searchResponse.getHits();
+        SearchHit[] hitsHits = hits.getHits();
+        for (SearchHit hit : hitsHits) {
+            String sourceAsString = hit.getSourceAsString();
+            Object[] sortValues = hit.getSortValues();
+            System.out.println("结果为: " + sourceAsString);
+            System.out.println("排序为: " + sortValues[0] + "-" + sortValues[1]);
         }
     }
 }
